@@ -164,7 +164,10 @@ class AzureContentUnderstandingFaceClient:
     def add_person(
         self, person_directory_id: str, tags: dict = None, face_ids: list = None
     ):
-        request_body = {"tags": tags, "faceIds": face_ids}
+        if face_ids:
+            request_body = {"tags": tags, "faceIds": face_ids}
+        else:
+            request_body = {"tags": tags}
         response = requests.post(
             self._get_person_directory_url(
                 self._endpoint,
@@ -228,8 +231,11 @@ class AzureContentUnderstandingFaceClient:
         )
         return self._handle_response(response, "get_face")
 
-    def add_face(self, person_directory_id: str, data: str):
-        request_body = {"faceSource": {"data": data}}
+    def add_face(self, person_directory_id: str, data: str, person_id: str = None):
+        if person_id:
+            request_body = {"faceSource": {"data": data}, "personId": person_id}
+        else:
+            request_body = {"faceSource": {"data": data}}
         response = requests.post(
             self._get_person_directory_url(
                 self._endpoint,
