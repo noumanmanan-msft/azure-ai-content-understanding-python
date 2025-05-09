@@ -271,9 +271,11 @@ class AzureContentUnderstandingFaceClient:
         )
         return self._handle_response(response, "delete_face")
 
-    def identify_person(self, person_directory_id: str, data: str):
+    def identify_person(
+        self, person_directory_id: str, data: str, targetBoundingBox: dict = None
+    ):
         request_body = {
-            "faceSource": {"data": data},
+            "faceSource": {"data": data, "targetBoundingBox": targetBoundingBox}
         }
         response = requests.post(
             self._get_person_directory_url(
@@ -286,9 +288,15 @@ class AzureContentUnderstandingFaceClient:
         )
         return self._handle_response(response, "identify")
 
-    def verify_person(self, person_directory_id: str, person_id: str, data: str):
+    def verify_person(
+        self,
+        person_directory_id: str,
+        person_id: str,
+        data: str,
+        targetBoundingBox: dict = None,
+    ):
         request_body = {
-            "faceSource": {"data": data},
+            "faceSource": {"data": data, "targetBoundingBox": targetBoundingBox}
         }
         response = requests.post(
             self._get_person_directory_url(
@@ -301,9 +309,11 @@ class AzureContentUnderstandingFaceClient:
         )
         return self._handle_response(response, "verify")
 
-    def find_similar_faces(self, person_directory_id: str, data: str):
+    def find_similar_faces(
+        self, person_directory_id: str, data: str, targetBoundingBox: dict = None
+    ):
         request_body = {
-            "faceSource": {"data": data},
+            "faceSource": {"data": data, "targetBoundingBox": targetBoundingBox}
         }
         response = requests.post(
             self._get_person_directory_url(
