@@ -60,7 +60,7 @@ class AzureContentUnderstandingFaceClient:
         if response.status_code == 204:
             self._logger.info(f"{action} completed successfully with status 204.")
             return None
-        if response.status_code != 200:
+        if response.status_code != 200 and response.status_code != 201:
             self._logger.error(
                 f"Error in {action}: {response.status_code} - {response.text}"
             )
@@ -141,14 +141,14 @@ class AzureContentUnderstandingFaceClient:
         )
         return self._handle_response(response, "delete_person_directory")
 
-    def get_persons(self, person_directory_id: str):
+    def list_persons(self, person_directory_id: str):
         response = requests.get(
             self._get_person_directory_url(
                 self._endpoint, self._api_version, f"{person_directory_id}/persons"
             ),
             headers=self._headers,
         )
-        return self._handle_response(response, "get_persons")
+        return self._handle_response(response, "list_persons")
 
     def get_person(self, person_directory_id: str, person_id: str):
         response = requests.get(
@@ -209,7 +209,7 @@ class AzureContentUnderstandingFaceClient:
         )
         return self._handle_response(response, "delete_person")
 
-    def get_faces(self, person_directory_id: str):
+    def list_faces(self, person_directory_id: str):
         response = requests.get(
             self._get_person_directory_url(
                 self._endpoint,
@@ -218,7 +218,7 @@ class AzureContentUnderstandingFaceClient:
             ),
             headers=self._headers,
         )
-        return self._handle_response(response, "get_faces")
+        return self._handle_response(response, "list_faces")
 
     def get_face(self, person_directory_id: str, face_id: str):
         response = requests.get(
