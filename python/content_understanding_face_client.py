@@ -25,9 +25,10 @@ class AzureContentUnderstandingFaceClient:
         self._endpoint = endpoint.rstrip("/")
         self._api_version = api_version
         self._logger = logging.getLogger(__name__)
-        self._headers = self._get_headers(
-            subscription_key, token_provider(), x_ms_useragent
-        )
+
+        token = token_provider() if token_provider else None
+
+        self._headers = self._get_headers(subscription_key, token, x_ms_useragent)
 
     def _get_face_url(self, endpoint, api_version, action):
         return (
