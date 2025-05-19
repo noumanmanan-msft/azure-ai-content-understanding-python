@@ -327,6 +327,7 @@ class AzureContentUnderstandingFaceClient:
         )
         return self._handle_response(response, "find_similar_faces")
 
+    @staticmethod
     def read_file_to_base64(file_path: str) -> str:
         with open(file_path, "rb") as f:
             file_data = f.read()
