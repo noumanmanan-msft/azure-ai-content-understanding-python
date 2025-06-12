@@ -1,6 +1,6 @@
 {
   "description": "Sample call recording analytics",
-  "scenario": "text",
+  "baseAnalyzerId": "prebuilt-audioAnalyzer",
   "config": {
     "returnDetails": true
   },
