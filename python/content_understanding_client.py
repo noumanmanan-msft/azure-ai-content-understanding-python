@@ -50,6 +50,12 @@ class AzureContentUnderstandingClient:
             "prefix": storage_container_path_prefix,
         }
 
+    def _get_classifier_url(self, endpoint, api_version, classifier_id):
+        return f"{endpoint}/contentunderstanding/classifiers/{classifier_id}?api-version={api_version}"
+
+    def _get_classify_url(self, endpoint, api_version, classifier_id):
+        return f"{endpoint}/contentunderstanding/classifiers/{classifier_id}:classify?api-version={api_version}"
+
     def _get_headers(self, subscription_key, api_token, x_ms_useragent):
         """Returns the headers for the HTTP requests.
         Args:
@@ -262,6 +268,93 @@ class AzureContentUnderstandingClient:
         except requests.exceptions.RequestException as e:
             print(f"HTTP request failed: {e}")
             return None
+
+    def begin_create_classifier(
+        self,
+        classifier_id: str,
+        classifier_schema: dict,
+    ):
+        """
+        Initiates the creation of an classifier with the given ID and schema.
+
+        Args:
+            classifier_id (str): The unique identifier for the classifier.
+            classifier_schema (dict): The schema definition for the classifier.
+
+        Raises:
+            requests.exceptions.HTTPError: If the HTTP request to create the classifier fails.
+            ValueError: If the classifier schema or ID is not provided.
+
+        Returns:
+            requests.Response: The response object from the HTTP request.
+        """
+
+        if not classifier_schema:
+            raise ValueError("Classifier schema must be provided.")
+        if not classifier_id:
+            raise ValueError("Classifier ID must be provided.")
+
+        headers = {"Content-Type": "application/json"}
+        headers.update(self._headers)
+
+        response = requests.put(
+            url=self._get_classifier_url(self._endpoint, self._api_version, classifier_id),
+            headers=headers,
+            json=classifier_schema,
+        )
+        response.raise_for_status()
+        self._logger.info(f"Classifier {classifier_id} create request accepted.")
+        return response
+
+    def begin_classify(self, classifier_id: str, file_location: str):
+        """
+        Begins the analysis of a file or URL using the specified classifier.
+
+        Args:
+            classifier_id (str): The ID of the classifier to use.
+            file_location (str): The path to the file or the URL to analyze.
+
+        Returns:
+            Response: The response from the analysis request.
+
+        Raises:
+            ValueError: If the file location is not a valid path or URL.
+            HTTPError: If the HTTP request returned an unsuccessful status code.
+        """
+        data = None
+        if Path(file_location).exists():
+            with open(file_location, "rb") as file:
+                data = file.read()
+            headers = {"Content-Type": "application/octet-stream"}
+        elif "https://" in file_location or "http://" in file_location:
+            data = {"url": file_location}
+            headers = {"Content-Type": "application/json"}
+        else:
+            raise ValueError("File location must be a valid path or URL.")
+
+        headers.update(self._headers)
+        if isinstance(data, dict):
+            response = requests.post(
+                url=self._get_classify_url(
+                    self._endpoint, self._api_version, classifier_id
+                ),
+                headers=headers,
+                json=data,
+            )
+        else:
+            response = requests.post(
+                url=self._get_classify_url(
+                    self._endpoint, self._api_version, classifier_id
+                ),
+                headers=headers,
+                data=data,
+            )
+
+        response.raise_for_status()
+        self._logger.info(
+            f"Analyzing file {file_location} with classifier_id: {classifier_id}"
+        )
+        return response
 
     def poll_result(
         self,
