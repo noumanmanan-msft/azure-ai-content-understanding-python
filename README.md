@@ -120,11 +120,11 @@ Azure AI Content Understanding is a new Generative AI-based [Azure AI service](h
 | --- | --- |
 | [content_extraction.ipynb](notebooks/content_extraction.ipynb) | In this sample we will show content understanding API can help you get semantic information from your file. For example OCR with table in document, audio transcription, and face analysis in video. |
 | [field_extraction.ipynb](notebooks/field_extraction.ipynb) | In this sample we will show how to create an analyzer to extract fields in your file. For example invoice amount in the document, how many people in an image, names mentioned in an audio, or summary of a video. You can customize the fields by creating your own analyzer template.  |
+| [classifier.ipynb](notebooks/classifier.ipynb) | This sample will demo how to (1) create a classifier to categorize documents, (2) create a custom analyzer to extract specific fields, and (3) combine classifier and analyzers to classify, optionally split, and analyze documents in a flexible processing pipeline. |
 | [conversational_field_extraction.ipynb](notebooks/conversational_field_extraction.ipynb) | This sample shows you how to evaluate conversational audio data that has previously been transcribed with Content Understanding or Azure AI Speech in in an efficient way to optimize processing quality. This also allows you to re-analyze data in a cost-efficient way. This sample is based on the [field_extraction.ipynb](notebooks/field_extraction.ipynb) sample. |
 | [analyzer_training.ipynb](notebooks/analyzer_training.ipynb) | If you want to futher boost the performance for field extraction, we can do training when you provide few labeled samples to the API. Note: This feature is available to document scenario now. |
 | [management.ipynb](notebooks/management.ipynb) | This sample will demo how to create a minimal analyzer, list all the analyzers in your resource, and delete the analyzer you don't need. |
-| [build_person_directory.ipynb](notebooks/build_person_directory.ipynb) | This sample will demo how to enroll people’s faces from images and build a Person Directory. |
-| [classifier.ipynb](notebooks/classifier.ipynb) | This sample will demo how to (1) create a classifier to categorize documents, (2) create a custom analyzer to extract specific fields, and (3) combine classifier and analyzer for intelligent document processing. | |
+| [build_person_directory.ipynb](notebooks/build_person_directory.ipynb) | This sample will demo how to enroll people’s faces from images and build a Person Directory. ||
 
 ## More Samples using Azure Content Understanding
 [Azure Search with Content Understanding](https://github.com/Azure-Samples/azure-ai-search-with-content-understanding-python)
