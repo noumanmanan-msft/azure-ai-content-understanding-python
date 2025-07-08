@@ -49,6 +49,16 @@ class AzureContentUnderstandingClient:
             "kind": "blob",
             "prefix": storage_container_path_prefix,
         }
+    
+    def _get_pro_mode_reference_docs_config(
+        self, storage_container_sas_url, storage_container_path_prefix
+    ):
+        return {
+            "kind": "reference",
+            "containerUrl": storage_container_sas_url,
+            "prefix": storage_container_path_prefix,
+            "fileListPath": "sources.jsonl",
+        }
 
     def _get_headers(self, subscription_key, api_token, x_ms_useragent):
         """Returns the headers for the HTTP requests.
@@ -116,6 +126,8 @@ class AzureContentUnderstandingClient:
         analyzer_template_path: str = "",
         training_storage_container_sas_url: str = "",
         training_storage_container_path_prefix: str = "",
+        pro_mode_reference_docs_storage_container_sas_url: str = "",
+        pro_mode_reference_docs_storage_container_path_prefix: str = "",
     ):
         """
         Initiates the creation of an analyzer with the given ID and schema.
@@ -148,6 +160,15 @@ class AzureContentUnderstandingClient:
             analyzer_template["trainingData"] = self._get_training_data_config(
                 training_storage_container_sas_url,
                 training_storage_container_path_prefix,
+            )
+
+        if (
+            pro_mode_reference_docs_storage_container_sas_url
+            and pro_mode_reference_docs_storage_container_path_prefix
+        ):  # noqa
+            analyzer_template["knowledgeSources"] = self._get_pro_mode_reference_docs_config(
+                pro_mode_reference_docs_storage_container_sas_url,
+                pro_mode_reference_docs_storage_container_path_prefix,
             )
 
         headers = {"Content-Type": "application/json"}
