@@ -97,6 +97,7 @@ Once you click the link above, please follow the steps below to set up the Codes
    ```
 
 ### (Option 3) Use Endpoint and Key (No `azd` Required)
+> ⚠️ Note: Using a subscription key works, but using a token provider with Azure Active Directory (AAD) is much safer and is highly recommended for production environments.
 1. Create [Azure AI Services resource](docs/create_azure_ai_service.md)
 2. Copy `notebooks/.env.sample` to `notebooks/.env`
     ```bash
