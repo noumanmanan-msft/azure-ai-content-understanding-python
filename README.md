@@ -71,7 +71,7 @@ Once you click the link above, please follow the steps below to set up the Codes
 ## Configure Azure AI service resource
 ### (Option 1) Use `azd` commands to auto create temporal resources to run sample
 1. Make sure you have permission to grant roles under subscription
-1. Login Azure
+2. Login Azure
     ```shell
     azd auth login
     ```
@@ -80,11 +80,10 @@ Once you click the link above, please follow the steps below to set up the Codes
     azd auth login --use-device-code
     ```
 
-1. Setting up environment, following prompts to choose location
+3. Setting up environment, following prompts to choose location
     ```shell
     azd up
     ```
-
 
 ### (Option 2) Manually create resources and set environment variables
 1. Create [Azure AI Services resource](docs/create_azure_ai_service.md)
@@ -96,6 +95,20 @@ Once you click the link above, please follow the steps below to set up the Codes
    ```shell
    azd auth login
    ```
+
+### (Option 3) Use Endpoint and Key (No `azd` Required)
+1. Create [Azure AI Services resource](docs/create_azure_ai_service.md)
+2. Copy `notebooks/.env.sample` to `notebooks/.env`
+    ```bash
+    cp notebooks/.env.sample notebooks/.env
+    ```
+3. Update `.env` with your credentials
+    - Edit notebooks/.env and set the following values:
+      ```
+      AZURE_AI_ENDPOINT=https://<your-resource-name>.services.ai.azure.com/
+      AZURE_AI_API_KEY=<your-azure-ai-api-key>
+      ```
+    - Replace <your-resource-name> and <your-azure-ai-api-key> with your actual values. You can find them in your AI Services resource under `Resource Management`/`Keys and Endpoint`
 
 ## Open a Jupyter notebook and follow the step-by-step guidance
 
