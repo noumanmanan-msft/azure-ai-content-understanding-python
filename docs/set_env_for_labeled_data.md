@@ -5,7 +5,7 @@ Folder [document_training](../data/document_training/) provide the manually labe
 2. Azure Storage Explorer is a tool which makes it easy to work with Azure Storage data. Install it and login with your credential, follow the [guide](https://aka.ms/download-and-install-Azure-Storage-Explorer).
 3. Create a blob container or use an exist one from Azure Storage Explorer.  
    <img src="./create-blob-container.png" width="600" />  
-4. Crate a folder in root of blob container. Note the name of the folder, and It could be used as parameter **TRAINING_DATA_PATH** when running the sample code.
+4. Create a folder in root of blob container. Note the name of the folder, and It could be used as parameter **TRAINING_DATA_PATH** when running the sample code.
    <img src="./create-blob-virtual-dir.png" width="800" />  
 5. Upload all the labeling files from [document_training](./document_training/) to the folder.  
    <img src="./upload-labeling-files.png" width="800" />
