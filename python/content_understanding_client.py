@@ -6,7 +6,7 @@ import requests
 import time
 
 from requests.models import Response
-from typing import Any
+from typing import Any, Callable, Optional, Dict, List, Union
 from pathlib import Path
 
 from azure.storage.blob.aio import ContainerClient
@@ -14,12 +14,12 @@ from azure.storage.blob.aio import ContainerClient
 
 class AzureContentUnderstandingClient:
 
-    PREBUILT_DOCUMENT_ANALYZER_ID = "prebuilt-documentAnalyzer"
-    RESULT_SUFFIX = ".result.json"
-    SOURCES_JSONL = "sources.jsonl"
+    PREBUILT_DOCUMENT_ANALYZER_ID: str = "prebuilt-documentAnalyzer"
+    RESULT_SUFFIX: str = ".result.json"
+    SOURCES_JSONL: str = "sources.jsonl"
 
     # https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/service-limits#document-and-text
-    SUPPORTED_FILE_TYPES = [
+    SUPPORTED_FILE_TYPES: List[str] = [
         ".pdf",
         ".tiff",
         ".jpg",
@@ -38,7 +38,7 @@ class AzureContentUnderstandingClient:
         ".xml",
     ]
 
-    SUPPORTED_FILE_TYPES_PRO_MODE = [
+    SUPPORTED_FILE_TYPES_PRO_MODE: List[str] = [
         ".pdf",
         ".tiff",
         ".jpg",
@@ -73,18 +73,18 @@ class AzureContentUnderstandingClient:
 
         self._headers = self._get_headers(subscription_key, token, x_ms_useragent)
 
-    def _get_analyzer_url(self, endpoint, api_version, analyzer_id):
+    def _get_analyzer_url(self, endpoint: str, api_version: str, analyzer_id: str) -> str:
         return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={api_version}"  # noqa
 
-    def _get_analyzer_list_url(self, endpoint, api_version):
+    def _get_analyzer_list_url(self, endpoint: str, api_version: str) -> str:
         return f"{endpoint}/contentunderstanding/analyzers?api-version={api_version}"
 
-    def _get_analyze_url(self, endpoint, api_version, analyzer_id):
+    def _get_analyze_url(self, endpoint: str, api_version: str, analyzer_id: str) -> str:
         return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={api_version}"  # noqa
 
     def _get_training_data_config(
-        self, storage_container_sas_url, storage_container_path_prefix
-    ):
+        self, storage_container_sas_url: str, storage_container_path_prefix: str
+    ) -> Dict[str, str]:
         return {
             "containerUrl": storage_container_sas_url,
             "kind": "blob",
@@ -92,8 +92,8 @@ class AzureContentUnderstandingClient:
         }
     
     def _get_pro_mode_reference_docs_config(
-        self, storage_container_sas_url, storage_container_path_prefix
-    ):
+        self, storage_container_sas_url: str, storage_container_path_prefix: str
+    ) -> List[Dict[str, str]]:
         return [{
             "kind": "reference",
             "containerUrl": storage_container_sas_url,
@@ -101,13 +101,15 @@ class AzureContentUnderstandingClient:
             "fileListPath": self.SOURCES_JSONL,
         }]
 
-    def _get_classifier_url(self, endpoint, api_version, classifier_id):
+    def _get_classifier_url(self, endpoint: str, api_version: str, classifier_id: str) -> str:
         return f"{endpoint}/contentunderstanding/classifiers/{classifier_id}?api-version={api_version}"
 
-    def _get_classify_url(self, endpoint, api_version, classifier_id):
+    def _get_classify_url(self, endpoint: str, api_version: str, classifier_id: str) -> str:
         return f"{endpoint}/contentunderstanding/classifiers/{classifier_id}:classify?api-version={api_version}"
 
-    def _get_headers(self, subscription_key, api_token, x_ms_useragent):
+    def _get_headers(
+        self, subscription_key: str, api_token: str, x_ms_useragent: str
+    ) -> Dict[str, str]:
         """Returns the headers for the HTTP requests.
         Args:
             subscription_key (str): The subscription key for the service.
@@ -163,7 +165,7 @@ class AzureContentUnderstandingClient:
         )
         return file_ext.lower() in supported_types
 
-    def get_all_analyzers(self):
+    def get_all_analyzers(self) -> Dict[str, Any]:
         """
         Retrieves a list of all available analyzers from the content understanding service.
 
@@ -184,7 +186,7 @@ class AzureContentUnderstandingClient:
         response.raise_for_status()
         return response.json()
 
-    def get_analyzer_detail_by_id(self, analyzer_id):
+    def get_analyzer_detail_by_id(self, analyzer_id: str) -> Dict[str, Any]:
         """
         Retrieves a specific analyzer detail through analyzerid from the content understanding service.
         This method sends a GET request to the service endpoint to get the analyzer detail.
@@ -214,7 +216,7 @@ class AzureContentUnderstandingClient:
         training_storage_container_path_prefix: str = "",
         pro_mode_reference_docs_storage_container_sas_url: str = "",
         pro_mode_reference_docs_storage_container_path_prefix: str = "",
-    ):
+    ) -> Response:
         """
         Initiates the creation of an analyzer with the given ID and schema.
 
@@ -269,7 +271,7 @@ class AzureContentUnderstandingClient:
         self._logger.info(f"Analyzer {analyzer_id} create request accepted.")
         return response
 
-    def delete_analyzer(self, analyzer_id: str):
+    def delete_analyzer(self, analyzer_id: str) -> Response:
         """
         Deletes an analyzer with the specified analyzer ID.
 
@@ -290,7 +292,7 @@ class AzureContentUnderstandingClient:
         self._logger.info(f"Analyzer {analyzer_id} deleted.")
         return response
 
-    def begin_analyze(self, analyzer_id: str, file_location: str):
+    def begin_analyze(self, analyzer_id: str, file_location: str) -> Response:
         """
         Begins the analysis of a file or URL using the specified analyzer.
 
@@ -357,7 +359,7 @@ class AzureContentUnderstandingClient:
         )
         return response
     
-    def get_analyze_result(self, file_location: str):
+    def get_analyze_result(self, file_location: str) -> Dict[str, Any]:
         response = self.begin_analyze(
             analyzer_id=self.PREBUILT_DOCUMENT_ANALYZER_ID,
             file_location=file_location,
@@ -365,18 +367,24 @@ class AzureContentUnderstandingClient:
         
         return self.poll_result(response, timeout_seconds=360)
     
-    async def _upload_file_to_blob(self, container_client: ContainerClient, file_path: str, target_blob_path: str):
+    async def _upload_file_to_blob(
+        self, container_client: ContainerClient, file_path: str, target_blob_path: str
+    ) -> None:
         with open(file_path, "rb") as data:
             await container_client.upload_blob(name=target_blob_path, data=data, overwrite=True)
         self._logger.info(f"Uploaded file to {target_blob_path}")
 
-    async def _upload_json_to_blob(self, container_client: ContainerClient, data: dict, target_blob_path: str):
+    async def _upload_json_to_blob(
+        self, container_client: ContainerClient, data: Dict[str, Any], target_blob_path: str
+    ) -> None:
         json_str = json.dumps(data, indent=4)
         json_bytes = json_str.encode('utf-8')
         await container_client.upload_blob(name=target_blob_path, data=json_bytes, overwrite=True)
         self._logger.info(f"Uploaded json to {target_blob_path}")
     
-    async def upload_jsonl_to_blob(self, container_client: ContainerClient, data_list: list[dict], target_blob_path: str):
+    async def upload_jsonl_to_blob(
+        self, container_client: ContainerClient, data_list: List[Dict[str, Any]], target_blob_path: str
+    ) -> None:
         jsonl_string = "\n".join(json.dumps(record) for record in data_list)
         jsonl_bytes = jsonl_string.encode("utf-8")
         await container_client.upload_blob(name=target_blob_path, data=jsonl_bytes, overwrite=True)
@@ -388,7 +396,7 @@ class AzureContentUnderstandingClient:
         storage_container_sas_url: str,
         storage_container_path_prefix: str,
         skip_analyze: bool = False,
-    ):
+    ) -> None:
         container_client = ContainerClient.from_container_url(storage_container_sas_url)
         resources = []
         for dirpath, _, filenames in os.walk(referemce_docs_folder):
@@ -425,7 +433,7 @@ class AzureContentUnderstandingClient:
 
     def get_image_from_analyze_operation(
         self, analyze_response: Response, image_id: str
-    ):
+    ) -> Optional[bytes]:
         """Retrieves an image from the analyze operation using the image ID.
         Args:
             analyze_response (Response): The response object from the analyze operation.
@@ -456,8 +464,8 @@ class AzureContentUnderstandingClient:
     def begin_create_classifier(
         self,
         classifier_id: str,
-        classifier_schema: dict,
-    ):
+        classifier_schema: Dict[str, Any],
+    ) -> Response:
         """
         Initiates the creation of an classifier with the given ID and schema.
 
@@ -490,7 +498,7 @@ class AzureContentUnderstandingClient:
         self._logger.info(f"Classifier {classifier_id} create request accepted.")
         return response
 
-    def begin_classify(self, classifier_id: str, file_location: str):
+    def begin_classify(self, classifier_id: str, file_location: str) -> Response:
         """
         Begins the analysis of a file or URL using the specified classifier.
 
@@ -545,7 +553,7 @@ class AzureContentUnderstandingClient:
         response: Response,
         timeout_seconds: int = 120,
         polling_interval_seconds: int = 2,
-    ):
+    ) -> Dict[str, Any]:
         """
         Polls the result of an asynchronous operation until it completes or times out.
 
