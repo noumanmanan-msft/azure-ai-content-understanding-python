@@ -125,7 +125,7 @@ class AzureContentUnderstandingClient:
         return headers
     
     @staticmethod
-    def is_supported_file_type(file_path: Path, is_pro_mode: bool=False) -> bool:
+    def is_supported_type_by_file_path(file_path: Path, is_pro_mode: bool=False) -> bool:
         """
         Checks if the given file path has a supported file type.
 
@@ -145,6 +145,23 @@ class AzureContentUnderstandingClient:
         )
         return file_ext in supported_types
 
+    @staticmethod
+    def is_supported_type_by_file_ext(file_ext: str, is_pro_mode: bool=False) -> bool:
+        """
+        Checks if the given file extension is supported.
+
+        Args:
+            file_ext (str): The file extension to check.
+            is_pro_mode (bool): If True, checks against pro mode supported file types.
+
+        Returns:
+            bool: True if the file type is supported, False otherwise.
+        """
+        supported_types = (
+            AzureContentUnderstandingClient.SUPPORTED_FILE_TYPES_PRO_MODE
+            if is_pro_mode else AzureContentUnderstandingClient.SUPPORTED_FILE_TYPES
+        )
+        return file_ext.lower() in supported_types
 
     def get_all_analyzers(self):
         """
@@ -300,11 +317,11 @@ class AzureContentUnderstandingClient:
                             "data": base64.b64encode(f.read_bytes()).decode("utf-8")
                         }
                         for f in file_path.iterdir()
-                        if f.is_file() and self.is_supported_file_type(f, is_pro_mode=True)
+                        if f.is_file() and self.is_supported_type_by_file_path(f, is_pro_mode=True)
                     ]
                 }
                 headers = {"Content-Type": "application/json"}
-            elif file_path.is_file() and self.is_supported_file_type(file_path):
+            elif file_path.is_file() and self.is_supported_type_by_file_path(file_path):
                 with open(file_location, "rb") as file:
                     data = file.read()
                 headers = {"Content-Type": "application/octet-stream"}
@@ -370,32 +387,40 @@ class AzureContentUnderstandingClient:
         referemce_docs_folder: str,
         storage_container_sas_url: str,
         storage_container_path_prefix: str,
-        has_result_json: bool = False,
+        skip_analyze: bool = False,
     ):
         container_client = ContainerClient.from_container_url(storage_container_sas_url)
-        if not has_result_json:
-            self._logger.info("Generating knowledge base files...")
-            resources = []
-            for dirpath, _, filenames in os.walk(referemce_docs_folder):
-                for filename in filenames:
-                    filename_no_ext, file_ext = os.path.splitext(filename)
-                    if file_ext.lower() in self.SUPPORTED_FILE_TYPES_PRO_MODE:
-                        file_path = os.path.join(dirpath, filename)
-                        file_blob_path = storage_container_path_prefix + filename
-                        self._logger.info(f"Generating result for {file_path}")
+        resources = []
+        for dirpath, _, filenames in os.walk(referemce_docs_folder):
+            for filename in filenames:
+                filename_no_ext, file_ext = os.path.splitext(filename)
+                if self.is_supported_type_by_file_ext(file_ext, is_pro_mode=True):
+                    file_path = os.path.join(dirpath, filename)
+                    result_file_name = filename_no_ext + self.RESULT_SUFFIX
+                    result_file_blob_path = storage_container_path_prefix + result_file_name
+                    # Get and upload result.json
+                    if not skip_analyze:
+                        self._logger.info(f"Analyzing result for {filename}")
                         try:
                             analyze_result = self.get_analyze_result(file_path)
-                            result_file_name = filename_no_ext + self.RESULT_SUFFIX
-                            result_file_blob_path = storage_container_path_prefix + result_file_name
-                            await self._upload_json_to_blob(container_client, analyze_result, result_file_blob_path)
-                            await self._upload_file_to_blob(container_client, file_path, file_blob_path)
-                            resources.append({"file": filename, "resultFile": result_file_name})
                         except Exception as e:
-                            self._logger.error(f"Error of Generating knowledge base of {filename}: {e}")
+                            self._logger.error(f"Error of getting analyze result of {filename}: {e}")
                             continue
-            await self.upload_jsonl_to_blob(container_client, resources, storage_container_path_prefix + self.SOURCES_JSONL)
+                        await self._upload_json_to_blob(container_client, analyze_result, result_file_blob_path)
+                    else:
+                        self._logger.info(f"Using existing result.json for {filename}")
+                        result_file_path = os.path.join(dirpath, result_file_name)
+                        if not os.path.exists(result_file_path):
+                            self._logger.warning(f"Result file {result_file_name} does not exist, skipping.")
+                            continue
+                        await self._upload_file_to_blob(container_client, result_file_path, result_file_blob_path)
+                    # Upload the original file
+                    file_blob_path = storage_container_path_prefix + filename
+                    await self._upload_file_to_blob(container_client, file_path, file_blob_path)
+                    resources.append({"file": filename, "resultFile": result_file_name})
+        # Upload sources.jsonl
+        await self.upload_jsonl_to_blob(container_client, resources, storage_container_path_prefix + self.SOURCES_JSONL)
         await container_client.close()
-        # TODO: the logic for existing result.json
 
 
     def get_image_from_analyze_operation(
