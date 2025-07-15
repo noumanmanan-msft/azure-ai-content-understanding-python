@@ -71,7 +71,7 @@ Once you click the link above, please follow the steps below to set up the Codes
 ## Configure Azure AI service resource
 ### (Option 1) Use `azd` commands to auto create temporal resources to run sample
 1. Make sure you have permission to grant roles under subscription
-1. Login Azure
+2. Login Azure
     ```shell
     azd auth login
     ```
@@ -80,11 +80,10 @@ Once you click the link above, please follow the steps below to set up the Codes
     azd auth login --use-device-code
     ```
 
-1. Setting up environment, following prompts to choose location
+3. Setting up environment, following prompts to choose location
     ```shell
     azd up
     ```
-
 
 ### (Option 2) Manually create resources and set environment variables
 1. Create [Azure AI Services resource](docs/create_azure_ai_service.md)
@@ -96,6 +95,21 @@ Once you click the link above, please follow the steps below to set up the Codes
    ```shell
    azd auth login
    ```
+
+### (Option 3) Use Endpoint and Key (No `azd` Required)
+> ⚠️ Note: Using a subscription key works, but using a token provider with Azure Active Directory (AAD) is much safer and is highly recommended for production environments.
+1. Create [Azure AI Services resource](docs/create_azure_ai_service.md)
+2. Copy `notebooks/.env.sample` to `notebooks/.env`
+    ```bash
+    cp notebooks/.env.sample notebooks/.env
+    ```
+3. Update `.env` with your credentials
+    - Edit notebooks/.env and set the following values:
+      ```
+      AZURE_AI_ENDPOINT=https://<your-resource-name>.services.ai.azure.com/
+      AZURE_AI_API_KEY=<your-azure-ai-api-key>
+      ```
+    - Replace <your-resource-name> and <your-azure-ai-api-key> with your actual values. You can find them in your AI Services resource under `Resource Management`/`Keys and Endpoint`
 
 ## Open a Jupyter notebook and follow the step-by-step guidance
 
@@ -119,11 +133,12 @@ Azure AI Content Understanding is a new Generative AI-based [Azure AI service](h
 | File | Description |
 | --- | --- |
 | [content_extraction.ipynb](notebooks/content_extraction.ipynb) | In this sample we will show content understanding API can help you get semantic information from your file. For example OCR with table in document, audio transcription, and face analysis in video. |
-| [field_extraction.ipynb](notebooks/field_extraction.ipynb) | In this sample we will show how to create an analyzer to extract fields in your file. For example invoice amount in the document, how many people in an image, names mentioned in an audio, or summary of a video. You can customize the fields by creating your own analyzer template.  |
+| [field_extraction.ipynb](notebooks/field_extraction.ipynb) | In this sample we will show how to create an analyzer to extract fields in your file. For example invoice amount in the document, how many people in an image, names mentioned in an audio, or summary of a video. You can customize the fields by creating your own analyzer template. |
+| [classifier.ipynb](notebooks/classifier.ipynb) | This sample will demo how to (1) create a classifier to categorize documents, (2) create a custom analyzer to extract specific fields, and (3) combine classifier and analyzers to classify, optionally split, and analyze documents in a flexible processing pipeline. |
 | [conversational_field_extraction.ipynb](notebooks/conversational_field_extraction.ipynb) | This sample shows you how to evaluate conversational audio data that has previously been transcribed with Content Understanding or Azure AI Speech in in an efficient way to optimize processing quality. This also allows you to re-analyze data in a cost-efficient way. This sample is based on the [field_extraction.ipynb](notebooks/field_extraction.ipynb) sample. |
 | [analyzer_training.ipynb](notebooks/analyzer_training.ipynb) | If you want to futher boost the performance for field extraction, we can do training when you provide few labeled samples to the API. Note: This feature is available to document scenario now. |
 | [management.ipynb](notebooks/management.ipynb) | This sample will demo how to create a minimal analyzer, list all the analyzers in your resource, and delete the analyzer you don't need. |
-| [build_person_directory.ipynb](notebooks/build_person_directory.ipynb) | This sample will demo how to enroll people’s faces from images and build a Person Directory. | |
+| [build_person_directory.ipynb](notebooks/build_person_directory.ipynb) | This sample will demo how to enroll people’s faces from images and build a Person Directory. |
 
 ## More Samples using Azure Content Understanding
 [Azure Search with Content Understanding](https://github.com/Azure-Samples/azure-ai-search-with-content-understanding-python)
