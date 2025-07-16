@@ -6,7 +6,7 @@ import requests
 import time
 
 from requests.models import Response
-from typing import Any, Callable, Optional, Dict, List, Union
+from typing import Any, Optional, Dict, List
 from pathlib import Path
 
 from azure.storage.blob.aio import ContainerClient
