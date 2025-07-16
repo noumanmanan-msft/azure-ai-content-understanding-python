@@ -15,8 +15,8 @@ from azure.storage.blob.aio import ContainerClient
 class AzureContentUnderstandingClient:
 
     PREBUILT_DOCUMENT_ANALYZER_ID: str = "prebuilt-documentAnalyzer"
-    RESULT_SUFFIX: str = ".result.json"
-    SOURCES_JSONL: str = "sources.jsonl"
+    OCR_RESULT_FILE_SUFFIX: str = ".result.json"
+    KNOWLEDGE_SOURCE_LIST_FILE_NAME: str = "sources.jsonl"
 
     # https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/service-limits#document-and-text
     SUPPORTED_FILE_TYPES: List[str] = [
@@ -98,7 +98,7 @@ class AzureContentUnderstandingClient:
             "kind": "reference",
             "containerUrl": storage_container_sas_url,
             "prefix": storage_container_path_prefix,
-            "fileListPath": self.SOURCES_JSONL,
+            "fileListPath": self.KNOWLEDGE_SOURCE_LIST_FILE_NAME,
         }]
 
     def _get_classifier_url(self, endpoint: str, api_version: str, classifier_id: str) -> str:
@@ -133,7 +133,7 @@ class AzureContentUnderstandingClient:
 
         Args:
             file_path (Path): The path to the file to check.
-            is_pro_mode (bool): If True, checks against pro mode supported file types.
+            is_pro_mode (bool): If True, checks against Pro mode supported file types.
 
         Returns:
             bool: True if the file type is supported, False otherwise.
@@ -154,7 +154,7 @@ class AzureContentUnderstandingClient:
 
         Args:
             file_ext (str): The file extension to check.
-            is_pro_mode (bool): If True, checks against pro mode supported file types.
+            is_pro_mode (bool): If True, checks against Pro mode supported file types.
 
         Returns:
             bool: True if the file type is supported, False otherwise.
@@ -311,7 +311,7 @@ class AzureContentUnderstandingClient:
         file_path = Path(file_location)
         if file_path.exists():
             if file_path.is_dir():
-                # Only pro mode supports multiple input files
+                # Only Pro mode supports multiple input files
                 data = {
                     "inputs": [
                         {
@@ -359,7 +359,7 @@ class AzureContentUnderstandingClient:
         )
         return response
     
-    def get_analyze_result(self, file_location: str) -> Dict[str, Any]:
+    def get_prebuilt_document_analyze_result(self, file_location: str) -> Dict[str, Any]:
         response = self.begin_analyze(
             analyzer_id=self.PREBUILT_DOCUMENT_ANALYZER_ID,
             file_location=file_location,
@@ -392,25 +392,25 @@ class AzureContentUnderstandingClient:
 
     async def generate_knowledge_base_on_blob(
         self,
-        referemce_docs_folder: str,
+        reference_docs_folder: str,
         storage_container_sas_url: str,
         storage_container_path_prefix: str,
         skip_analyze: bool = False,
     ) -> None:
         container_client = ContainerClient.from_container_url(storage_container_sas_url)
         resources = []
-        for dirpath, _, filenames in os.walk(referemce_docs_folder):
+        for dirpath, _, filenames in os.walk(reference_docs_folder):
             for filename in filenames:
                 filename_no_ext, file_ext = os.path.splitext(filename)
                 if self.is_supported_type_by_file_ext(file_ext, is_pro_mode=True):
                     file_path = os.path.join(dirpath, filename)
-                    result_file_name = filename_no_ext + self.RESULT_SUFFIX
+                    result_file_name = filename_no_ext + self.OCR_RESULT_FILE_SUFFIX
                     result_file_blob_path = storage_container_path_prefix + result_file_name
                     # Get and upload result.json
                     if not skip_analyze:
                         self._logger.info(f"Analyzing result for {filename}")
                         try:
-                            analyze_result = self.get_analyze_result(file_path)
+                            analyze_result = self.get_prebuilt_document_analyze_result(file_path)
                         except Exception as e:
                             self._logger.error(f"Error of getting analyze result of {filename}: {e}")
                             continue
@@ -427,7 +427,8 @@ class AzureContentUnderstandingClient:
                     await self._upload_file_to_blob(container_client, file_path, file_blob_path)
                     resources.append({"file": filename, "resultFile": result_file_name})
         # Upload sources.jsonl
-        await self.upload_jsonl_to_blob(container_client, resources, storage_container_path_prefix + self.SOURCES_JSONL)
+        await self.upload_jsonl_to_blob(
+            container_client, resources, storage_container_path_prefix + self.KNOWLEDGE_SOURCE_LIST_FILE_NAME)
         await container_client.close()
 
 
