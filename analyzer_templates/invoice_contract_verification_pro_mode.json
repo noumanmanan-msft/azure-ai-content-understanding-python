@@ -1,9 +1,6 @@
 {
     "baseAnalyzerId": "prebuilt-documentAnalyzer",
     "mode": "pro",
-    "config": {
-        "disableContentFiltering": true
-    },
     "processingLocation": "global",
     "fieldSchema": {
         "name": "InvoiceContractVerification",
