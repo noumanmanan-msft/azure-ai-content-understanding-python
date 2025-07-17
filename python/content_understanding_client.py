@@ -422,8 +422,10 @@ class AzureContentUnderstandingClient:
                         await self._upload_file_to_blob(container_client, ocr_result_path, ocr_result_blob_path)
                         self._logger.info(f"Uploaded training data for {filename}")
                     else:
-                        self._logger.warning(
-                            f"Label file {label_filename} or OCR result file {ocr_result_filename} does not exist for {filename}, skipping."
+                        raise FileNotFoundError(
+                            f"Label file '{label_filename}' or OCR result file '{ocr_result_filename}' "
+                            f"does not exist in '{training_docs_folder}'. "
+                            f"Please ensure both files exist for '{filename}'."
                         )
 
     async def generate_knowledge_base_on_blob(
@@ -451,20 +453,47 @@ class AzureContentUnderstandingClient:
                             try:
                                 analyze_result = self.get_prebuilt_document_analyze_result(file_path)
                             except Exception as e:
-                                self._logger.error(f"Error of getting analyze result of {filename}: {e}")
-                                continue
+                                self._logger.error(
+                                    f"Error of getting analyze result of '{filename}'. "
+                                    f"Please check the error message and consider retrying or removing this file."
+                                    )
+                                raise e
                             await self._upload_json_to_blob(container_client, analyze_result, result_file_blob_path)
                         else:
-                            self._logger.info(f"Using existing result.json for {filename}")
+                            self._logger.info(f"Using existing result.json for '{filename}'")
                             result_file_path = os.path.join(dirpath, result_file_name)
                             if not os.path.exists(result_file_path):
-                                self._logger.warning(f"Result file {result_file_name} does not exist, skipping.")
-                                continue
+                                raise FileNotFoundError(
+                                    f"Result file '{result_file_name}' does not exist in '{dirpath}'. "
+                                    f"Please run analyze first or remove this file from the folder."
+                                )
                             await self._upload_file_to_blob(container_client, result_file_path, result_file_blob_path)
                         # Upload the original file
                         file_blob_path = storage_container_path_prefix + filename
                         await self._upload_file_to_blob(container_client, file_path, file_blob_path)
                         resources.append({"file": filename, "resultFile": result_file_name})
+                    elif filename.endswith(self.OCR_RESULT_FILE_SUFFIX) and skip_analyze:
+                        if filename.replace(self.OCR_RESULT_FILE_SUFFIX, "") in filenames:
+                            # skip result.json files corresponding to the file with supported document type
+                            original_filename = filename.replace(self.OCR_RESULT_FILE_SUFFIX, "")
+                            original_filename_no_ext, original_file_ext = os.path.splitext(original_filename)
+                            if self.is_supported_type_by_file_ext(original_file_ext, is_document=True):
+                                continue
+                            else:
+                                raise ValueError(
+                                    f"The original file of '{filename}' is not a supported document type, "
+                                    f"please remove the result file '{filename}' and '{original_filename}'."
+                                )
+                        else:
+                            raise ValueError(
+                                f"Result file '{filename}' is not corresponding to an original file, "
+                                f"please remove it."
+                            )
+                    else:
+                        raise ValueError(
+                            f"File '{filename}' is not a supported document type, "
+                            f"please remove it or convert it to a supported type."
+                        )
             # Upload sources.jsonl
             await self.upload_jsonl_to_blob(
                 container_client, resources, storage_container_path_prefix + self.KNOWLEDGE_SOURCE_LIST_FILE_NAME)
