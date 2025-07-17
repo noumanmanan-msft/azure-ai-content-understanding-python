@@ -7,6 +7,8 @@ Welcome! Content Understanding is a solution that analyzes and comprehends vario
 - As of 2025/05, 2025-05-01-preview is only available in the regions documented in [Content Understanding region and language support](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/language-region-support).
 - To access the sample code for version 2024-12-01-preview, please check out the corresponding Git tag 2024-12-01-preview, or download it directly from the [release page](https://github.com/Azure-Samples/azure-ai-content-understanding-python/releases/tag/2024-12-01-preview).
 
+  :point_right: If you are looking for **.NET samples**, check out [this repo](https://github.com/Azure-Samples/azure-ai-content-understanding-dotnet/)
+
 ## Getting started
 You can run the sample in GitHub Codespaces or in your local environment. For a smoother, hassle-free experience, we recommend starting with Codespaces.
 
