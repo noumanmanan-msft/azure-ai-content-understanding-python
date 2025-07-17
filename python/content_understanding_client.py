@@ -19,10 +19,11 @@ class AzureContentUnderstandingClient:
 
     PREBUILT_DOCUMENT_ANALYZER_ID: str = "prebuilt-documentAnalyzer"
     OCR_RESULT_FILE_SUFFIX: str = ".result.json"
+    LABEL_FILE_SUFFIX: str = ".labels.json"
     KNOWLEDGE_SOURCE_LIST_FILE_NAME: str = "sources.jsonl"
 
     # https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/service-limits#document-and-text
-    SUPPORTED_FILE_TYPES: List[str] = [
+    SUPPORTED_FILE_TYPES_DOCUMENT_TXT: List[str] = [
         ".pdf",
         ".tiff",
         ".jpg",
@@ -41,7 +42,7 @@ class AzureContentUnderstandingClient:
         ".xml",
     ]
 
-    SUPPORTED_FILE_TYPES_PRO_MODE: List[str] = [
+    SUPPORTED_FILE_TYPES_DOCUMENT: List[str] = [
         ".pdf",
         ".tiff",
         ".jpg",
@@ -49,7 +50,7 @@ class AzureContentUnderstandingClient:
         ".png",
         ".bmp",
         ".heif",
-    ]
+    ]  # Pro mode and Training for Standard mode only support document data
 
     def __init__(
         self,
@@ -130,31 +131,31 @@ class AzureContentUnderstandingClient:
         return headers
     
     @staticmethod
-    def is_supported_type_by_file_ext(file_ext: str, is_pro_mode: bool=False) -> bool:
+    def is_supported_type_by_file_ext(file_ext: str, is_document: bool=False) -> bool:
         """
         Checks if the given file extension is supported.
 
         Args:
             file_ext (str): The file extension to check.
-            is_pro_mode (bool): If True, checks against Pro mode supported file types.
+            is_document (bool): If True, checks against Document supported file types.
 
         Returns:
             bool: True if the file type is supported, False otherwise.
         """
         supported_types = (
-            AzureContentUnderstandingClient.SUPPORTED_FILE_TYPES_PRO_MODE
-            if is_pro_mode else AzureContentUnderstandingClient.SUPPORTED_FILE_TYPES
+            AzureContentUnderstandingClient.SUPPORTED_FILE_TYPES_DOCUMENT
+            if is_document else AzureContentUnderstandingClient.SUPPORTED_FILE_TYPES_DOCUMENT_TXT
         )
         return file_ext.lower() in supported_types
     
     @staticmethod
-    def is_supported_type_by_file_path(file_path: Path, is_pro_mode: bool=False) -> bool:
+    def is_supported_type_by_file_path(file_path: Path, is_document: bool=False) -> bool:
         """
         Checks if the given file path has a supported file type.
 
         Args:
             file_path (Path): The path to the file to check.
-            is_pro_mode (bool): If True, checks against Pro mode supported file types.
+            is_document (bool): If True, checks against Document supported file types.
 
         Returns:
             bool: True if the file type is supported, False otherwise.
@@ -162,7 +163,7 @@ class AzureContentUnderstandingClient:
         if not file_path.is_file():
             return False
         file_ext = file_path.suffix.lower()
-        return AzureContentUnderstandingClient.is_supported_type_by_file_ext(file_ext, is_pro_mode)
+        return AzureContentUnderstandingClient.is_supported_type_by_file_ext(file_ext, is_document)
 
     def get_all_analyzers(self) -> Dict[str, Any]:
         """
@@ -318,7 +319,7 @@ class AzureContentUnderstandingClient:
                             "data": base64.b64encode(f.read_bytes()).decode("utf-8")
                         }
                         for f in file_path.rglob("*")
-                        if f.is_file() and self.is_supported_type_by_file_path(f, is_pro_mode=True)
+                        if f.is_file() and self.is_supported_type_by_file_path(f, is_document=True)
                     ]
                 }
                 headers = {"Content-Type": "application/json"}
@@ -389,6 +390,42 @@ class AzureContentUnderstandingClient:
         await container_client.upload_blob(name=target_blob_path, data=jsonl_bytes, overwrite=True)
         self._logger.info(f"Uploaded jsonl to blob '{target_blob_path}'")
 
+    async def generate_training_data_on_blob(
+        self,
+        training_docs_folder: str,
+        storage_container_sas_url: str,
+        storage_container_path_prefix: str,
+    ) -> None:
+        if not storage_container_path_prefix.endswith("/"):
+            storage_container_path_prefix += "/"
+        
+        async with ContainerClient.from_container_url(storage_container_sas_url) as container_client:
+            for filename in os.listdir(training_docs_folder):
+                file_path = os.path.join(training_docs_folder, filename)
+                _, file_ext = os.path.splitext(filename)
+                if os.path.isfile(file_path) and (
+                        file_ext == "" or file_ext.lower() in self.SUPPORTED_FILE_TYPES_DOCUMENT):
+                    # Training feature only supports Standard mode with document data
+                    # Document files uploaded to AI Foundry will be convert to uuid without extension
+                    label_filename = filename + self.LABEL_FILE_SUFFIX
+                    label_path = os.path.join(training_docs_folder, label_filename)
+                    ocr_result_filename = filename + self.OCR_RESULT_FILE_SUFFIX
+                    ocr_result_path = os.path.join(training_docs_folder, ocr_result_filename)
+                    if os.path.exists(label_path) and os.path.exists(ocr_result_path):
+                        file_blob_path = storage_container_path_prefix + filename
+                        label_blob_path = storage_container_path_prefix + label_filename
+                        ocr_result_blob_path = storage_container_path_prefix + ocr_result_filename
+
+                        # Upload files
+                        await self._upload_file_to_blob(container_client, file_path, file_blob_path)
+                        await self._upload_file_to_blob(container_client, label_path, label_blob_path)
+                        await self._upload_file_to_blob(container_client, ocr_result_path, ocr_result_blob_path)
+                        self._logger.info(f"Uploaded training data for {filename}")
+                    else:
+                        self._logger.warning(
+                            f"Label file {label_filename} or OCR result file {ocr_result_filename} does not exist for {filename}, skipping."
+                        )
+
     async def generate_knowledge_base_on_blob(
         self,
         reference_docs_folder: str,
@@ -398,12 +435,13 @@ class AzureContentUnderstandingClient:
     ) -> None:
         if not storage_container_path_prefix.endswith("/"):
             storage_container_path_prefix += "/"
+
         resources = []
         async with ContainerClient.from_container_url(storage_container_sas_url) as container_client:
             for dirpath, _, filenames in os.walk(reference_docs_folder):
                 for filename in filenames:
                     filename_no_ext, file_ext = os.path.splitext(filename)
-                    if self.is_supported_type_by_file_ext(file_ext, is_pro_mode=True):
+                    if self.is_supported_type_by_file_ext(file_ext, is_document=True):
                         file_path = os.path.join(dirpath, filename)
                         result_file_name = filename_no_ext + self.OCR_RESULT_FILE_SUFFIX
                         result_file_blob_path = storage_container_path_prefix + result_file_name
