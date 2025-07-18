@@ -7,7 +7,7 @@ import time
 
 from dataclasses import dataclass
 from requests.models import Response
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 
 from azure.storage.blob.aio import ContainerClient
