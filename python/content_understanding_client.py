@@ -163,7 +163,7 @@ class AzureContentUnderstandingClient:
         Checks if the given file path has a supported file type.
 
         Args:
-            file_path (Path): The path to the file to check.
+            file_path (Path): The local path to the file to check.
             is_document (bool): If True, checks against Document supported file types.
 
         Returns:
@@ -254,6 +254,8 @@ class AzureContentUnderstandingClient:
             training_storage_container_sas_url
             and training_storage_container_path_prefix
         ):  # noqa
+            if not training_storage_container_path_prefix.endswith("/"):
+                training_storage_container_path_prefix += "/"
             analyzer_template["trainingData"] = self._get_training_data_config(
                 training_storage_container_sas_url,
                 training_storage_container_path_prefix,
@@ -263,6 +265,8 @@ class AzureContentUnderstandingClient:
             pro_mode_reference_docs_storage_container_sas_url
             and pro_mode_reference_docs_storage_container_path_prefix
         ):  # noqa
+            if not pro_mode_reference_docs_storage_container_path_prefix.endswith("/"):
+                pro_mode_reference_docs_storage_container_path_prefix += "/"
             analyzer_template["knowledgeSources"] = self._get_pro_mode_reference_docs_config(
                 pro_mode_reference_docs_storage_container_sas_url,
                 pro_mode_reference_docs_storage_container_path_prefix,
@@ -307,7 +311,7 @@ class AzureContentUnderstandingClient:
 
         Args:
             analyzer_id (str): The ID of the analyzer to use.
-            file_location (str): The path to the file or the URL to analyze.
+            file_location (str): The local path to the file or the URL to analyze.
 
         Returns:
             Response: The response from the analysis request.
@@ -531,7 +535,7 @@ class AzureContentUnderstandingClient:
         """
         Generates a knowledge base on Azure Blob Storage by analyzing or uploading files from the given folder.
         Args:
-            reference_docs_folder (str): The path to the folder containing reference documents.
+            reference_docs_folder (str): The local path to the folder containing reference documents.
             storage_container_sas_url (str): The SAS URL of the Azure Blob Storage container.
             storage_container_path_prefix (str): The path prefix within the storage container where files will be
             skip_analyze (bool): If True, skips the analysis step and only uploads existing result files.
@@ -552,6 +556,7 @@ class AzureContentUnderstandingClient:
                             f"Error of getting analyze result of '{analyze_item.filename}'. "
                             f"Please check the error message and consider retrying or removing this file."
                             )
+                        raise e
                     result_file_blob_path = storage_container_path_prefix + analyze_item.result_file_name
                     file_blob_path = storage_container_path_prefix + analyze_item.filename
                     await self._upload_json_to_blob(container_client, analyze_result, result_file_blob_path)
@@ -644,7 +649,7 @@ class AzureContentUnderstandingClient:
 
         Args:
             classifier_id (str): The ID of the classifier to use.
-            file_location (str): The path to the file or the URL to analyze.
+            file_location (str): The local path to the file or the URL to analyze.
 
         Returns:
             Response: The response from the analysis request.
