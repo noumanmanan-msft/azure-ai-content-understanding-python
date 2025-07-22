@@ -26,6 +26,10 @@
         "description": "VIN of the damaged vehicle. Leave empty if not found.",
         "type": "string"
       },
+      "ReportingOfficer": {
+        "description": "Name of the reporting officer for the incident.",
+        "type": "string"
+      },
       "LineItemCorroboration": {
         "type": "array",
         "description": "Validation of all of the line items on the claim, including parts, services, labors, materials, shipping and other costs and fees. When in doubt about adherence to the policy, mark as suspicious.",
