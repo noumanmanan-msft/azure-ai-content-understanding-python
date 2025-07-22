@@ -1,5 +1,6 @@
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Tuple, Optional, List
 
 import nbformat
@@ -16,6 +17,7 @@ def should_skip(notebook_path: str, skip_list: List[str]) -> bool:
 def run_notebook(notebook_path: str, root: str) -> Tuple[bool, Optional[str]]:
     """Execute a single notebook."""
     try:
+        print(f"🔧 running: {notebook_path}")
         with open(notebook_path, encoding="utf-8") as f:
             nb = nbformat.read(f, as_version=4)
 
@@ -28,38 +30,53 @@ def run_notebook(notebook_path: str, root: str) -> Tuple[bool, Optional[str]]:
         return False, str(e)
 
 
-def run_all_notebooks(path: str = ".", skip_list: List[str] = None) -> None:
+def run_all_notebooks(path: str=".", skip_list: List[str]=None, max_workers: int=4) -> None:
     abs_path = os.path.abspath(path)
     print(f"🔍 Scanning for notebooks in: {abs_path}\n")
 
     skip_list = skip_list or []
 
-    notebook_found: int = 0
-    success_notebooks: List[str] = []
-    failed_notebooks: List[Tuple[str, str]] = []
-
+    notebook_paths: List[str] = []
     for root, _, files in os.walk(abs_path):
         for file in files:
             if file.endswith(".ipynb") and not file.startswith("."):
-                notebook_path = os.path.join(root, file)
-
-                if should_skip(notebook_path, skip_list):
-                    print(f"⏭️ Skipped: {notebook_path}")
+                full_path = os.path.join(root, file)
+                if should_skip(full_path, skip_list):
+                    print(f"⏭️ Skipped: {full_path}")
                     continue
+                notebook_paths.append(full_path)
 
-                notebook_found += 1
-                print(f"▶️ Running: {notebook_path}")
-                success, error = run_notebook(notebook_path, root)
+    if not notebook_paths:
+        print("❌ No notebooks were found. Check the folder path or repo contents.")
+        sys.exit(1)
 
+    print(f"▶️ Running {len(notebook_paths)} notebooks using {max_workers} workers...\n")
+
+    success_notebooks: List[str] = []
+    failed_notebooks: List[Tuple[str, str]] = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(run_notebook, path, os.path.dirname(path)): path
+            for path in notebook_paths
+        }
+
+        for future in as_completed(futures):
+            notebook_path = futures[future]
+            try:
+                success, error = future.result()
                 if success:
-                    print(f"✅ Success: {notebook_path}\n")
+                    print(f"✅ Success: {notebook_path}")
                     success_notebooks.append(notebook_path)
                 else:
                     print(f"❌ Failed: {notebook_path}\nError: {error}\n")
                     failed_notebooks.append((notebook_path, error))
+            except Exception as e:
+                print(f"❌ Exception during execution of {notebook_path}\nError: {e}\n")
+                failed_notebooks.append((notebook_path, str(e)))
 
     # 📋 Summary
-    print("🧾 Notebook Execution Summary")
+    print("\n🧾 Notebook Execution Summary")
     print(f"✅ {len(success_notebooks)} succeeded")
     print(f"❌ {len(failed_notebooks)} failed\n")
 
@@ -68,10 +85,6 @@ def run_all_notebooks(path: str = ".", skip_list: List[str] = None) -> None:
         for nb, error in failed_notebooks:
             last_line = error.strip().splitlines()[-1] if error else "Unknown error"
             print(f" - {nb}\n   ↳ {last_line}")
-        sys.exit(1)
-
-    if notebook_found == 0:
-        print("❌ No notebooks were found. Check the folder path or repo contents.")
         sys.exit(1)
 
     print("🏁 All notebooks completed successfully.")
