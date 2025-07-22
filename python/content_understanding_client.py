@@ -323,7 +323,7 @@ class AzureContentUnderstandingClient:
                     ]
                 }
                 headers = {"Content-Type": "application/json"}
-            elif file_path.is_file() and self.is_supported_type_by_file_path(file_path):
+            elif file_path.is_file():
                 with open(file_location, "rb") as file:
                     data = file.read()
                 headers = {"Content-Type": "application/octet-stream"}
