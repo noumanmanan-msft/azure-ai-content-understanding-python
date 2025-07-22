@@ -140,7 +140,7 @@ class AzureContentUnderstandingClient:
         return headers
     
     @staticmethod
-    def is_supported_type_by_file_ext(file_ext: str, is_document: bool=False) -> bool:
+    def is_supported_doc_type_by_file_ext(file_ext: str, is_document: bool=False) -> bool:
         """
         Checks if the given file extension is supported.
 
@@ -158,7 +158,7 @@ class AzureContentUnderstandingClient:
         return file_ext.lower() in supported_types
     
     @staticmethod
-    def is_supported_type_by_file_path(file_path: Path, is_document: bool=False) -> bool:
+    def is_supported_doc_type_by_file_path(file_path: Path, is_document: bool=False) -> bool:
         """
         Checks if the given file path has a supported file type.
 
@@ -172,7 +172,7 @@ class AzureContentUnderstandingClient:
         if not file_path.is_file():
             return False
         file_ext = file_path.suffix.lower()
-        return AzureContentUnderstandingClient.is_supported_type_by_file_ext(file_ext, is_document)
+        return AzureContentUnderstandingClient.is_supported_doc_type_by_file_ext(file_ext, is_document)
 
     def get_all_analyzers(self) -> Dict[str, Any]:
         """
@@ -332,11 +332,11 @@ class AzureContentUnderstandingClient:
                             "data": base64.b64encode(f.read_bytes()).decode("utf-8")
                         }
                         for f in file_path.rglob("*")
-                        if f.is_file() and self.is_supported_type_by_file_path(f, is_document=True)
+                        if f.is_file() and self.is_supported_doc_type_by_file_path(f, is_document=True)
                     ]
                 }
                 headers = {"Content-Type": "application/json"}
-            elif file_path.is_file() and self.is_supported_type_by_file_path(file_path):
+            elif file_path.is_file():
                 with open(file_location, "rb") as file:
                     data = file.read()
                 headers = {"Content-Type": "application/octet-stream"}
@@ -453,7 +453,7 @@ class AzureContentUnderstandingClient:
         for dirpath, _, filenames in os.walk(reference_docs_folder):
             for filename in filenames:
                 _, file_ext = os.path.splitext(filename)
-                if self.is_supported_type_by_file_ext(file_ext, is_document=True):
+                if self.is_supported_doc_type_by_file_ext(file_ext, is_document=True):
                     file_path = os.path.join(dirpath, filename)
                     result_file_name = filename + self.OCR_RESULT_FILE_SUFFIX
                     analyze_list.append(
@@ -483,7 +483,7 @@ class AzureContentUnderstandingClient:
         for dirpath, _, filenames in os.walk(reference_docs_folder):
             for filename in filenames:
                 _, file_ext = os.path.splitext(filename)
-                if self.is_supported_type_by_file_ext(file_ext, is_document=True):
+                if self.is_supported_doc_type_by_file_ext(file_ext, is_document=True):
                     file_path = os.path.join(dirpath, filename)
                     result_file_name = filename + self.OCR_RESULT_FILE_SUFFIX
                     result_file_path = os.path.join(dirpath, result_file_name)
@@ -505,7 +505,7 @@ class AzureContentUnderstandingClient:
                     if original_filename in filenames:
                         # skip result.json files corresponding to the file with supported document type
                         _, original_file_ext = os.path.splitext(original_filename)
-                        if self.is_supported_type_by_file_ext(original_file_ext, is_document=True):
+                        if self.is_supported_doc_type_by_file_ext(original_file_ext, is_document=True):
                             continue
                         else:
                             raise ValueError(
