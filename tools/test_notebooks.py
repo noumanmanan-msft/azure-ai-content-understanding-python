@@ -8,6 +8,7 @@ from nbconvert.preprocessors import ExecutePreprocessor
 
 
 SINGLE_NOTEBOOK_TIMEOUT = 1200
+CONCURRENT_WORKERS = 4
 
 
 def should_skip(notebook_path: str, skip_list: List[str]) -> bool:
@@ -30,7 +31,11 @@ def run_notebook(notebook_path: str, root: str) -> Tuple[bool, Optional[str]]:
         return False, str(e)
 
 
-def run_all_notebooks(path: str=".", skip_list: List[str]=None, max_workers: int=4) -> None:
+def run_all_notebooks(
+        path: str=".",
+        skip_list: List[str]=None,
+        max_workers: int=CONCURRENT_WORKERS,
+    ) -> None:
     abs_path = os.path.abspath(path)
     print(f"🔍 Scanning for notebooks in: {abs_path}\n")
 
