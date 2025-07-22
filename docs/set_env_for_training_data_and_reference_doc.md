@@ -13,14 +13,18 @@ Folders [document_training](../data/document_training/) and [field_extraction_pr
    <img src="./get-access-signature.png" height="600" />  <img src="./choose-signature-options.png" height="600" />  
 5. *Copy the SAS URL:* After creating the SAS, click `Copy` to get the URL with token. This will be used as the value for **TRAINING_DATA_SAS_URL** or **REFERENCE_DOC_SAS_URL** when running the sample code.  
    <img src="./copy-access-signature.png" width="600" />  
-6. *Set Environment Variables in `.env` File:* Add the SAS URL as value of **TRAINING_DATA_SAS_URL** and/or **REFERENCE_DOC_SAS_URL** and designated folder path as value of **TRAINING_DATA_PATH** or **REFERENCE_DOC_PATH** into the `.env` file. 
-
-    ```env
-    TRAINING_DATA_SAS_URL=<Blob container SAS URL>
-    TRAINING_DATA_PATH=<Designated folder path under the blob container>
-    REFERENCE_DOC_SAS_URL=<Blob container SAS URL>
-    REFERENCE_DOC_PATH=<Designated folder path under the blob container>
-    ```
+6. *Set Environment Variables in ".env" File:* Depending on the sample that you will run, you will need to set required environment variables in [.env](../notebooks/.env).
+    > NOTE: **REFERENCE_DOC_SAS_URL** can be the same as the **TRAINING_DATA_SAS_URL** to re-use the same blob container
+    - [analyzer_training](../notebooks/analyzer_training.ipynb): Add the SAS URL as value of **TRAINIGN_DATA_SAS_URL**, and a prefix for **TRAINING_DATA_PATH**. You can choose any folder name you like for **TRAINING_DATA_PATH**. For example, you could use "training_files".
+        ```env
+        TRAINING_DATA_SAS_URL=<Blob container SAS URL>
+        TRAINING_DATA_PATH=<Designated folder path under the blob container>
+        ```
+    - [field_extraction_pro_mode](../notebooks/field_extraction_pro_mode.ipynb): Add the SAS URL as value of **REFERENCE_DOC_SAS_URL**, and a prefix for **REFERENCE_DOC_PATH**. You can choose any folder name you like for **REFERENCE_DOC_PATH**. For example, you could use "reference_docs".
+        ```env
+        REFERENCE_DOC_SAS_URL=<Blob container SAS URL>
+        REFERENCE_DOC_PATH=<Designated folder path under the blob container>
+        ```
 
 Now, we have completed the preparation of the data environment. Next, we could create an analyzer through code.
 

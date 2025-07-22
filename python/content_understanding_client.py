@@ -5,14 +5,23 @@ import os
 import requests
 import time
 
+from dataclasses import dataclass
 from requests.models import Response
-from typing import Any, Optional, Dict, List
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 
 from azure.storage.blob.aio import ContainerClient
 
 
 POLL_TIMEOUT_SECONDS = 120
+
+
+@dataclass
+class ReferenceDocItem:
+    filename: str
+    file_path: str
+    result_file_name: str
+    result_file_path: Optional[str] = None
 
 
 class AzureContentUnderstandingClient:
@@ -131,7 +140,7 @@ class AzureContentUnderstandingClient:
         return headers
     
     @staticmethod
-    def is_supported_type_by_file_ext(file_ext: str, is_document: bool=False) -> bool:
+    def is_supported_doc_type_by_file_ext(file_ext: str, is_document: bool=False) -> bool:
         """
         Checks if the given file extension is supported.
 
@@ -149,12 +158,12 @@ class AzureContentUnderstandingClient:
         return file_ext.lower() in supported_types
     
     @staticmethod
-    def is_supported_type_by_file_path(file_path: Path, is_document: bool=False) -> bool:
+    def is_supported_doc_type_by_file_path(file_path: Path, is_document: bool=False) -> bool:
         """
         Checks if the given file path has a supported file type.
 
         Args:
-            file_path (Path): The path to the file to check.
+            file_path (Path): The local path to the file to check.
             is_document (bool): If True, checks against Document supported file types.
 
         Returns:
@@ -163,7 +172,7 @@ class AzureContentUnderstandingClient:
         if not file_path.is_file():
             return False
         file_ext = file_path.suffix.lower()
-        return AzureContentUnderstandingClient.is_supported_type_by_file_ext(file_ext, is_document)
+        return AzureContentUnderstandingClient.is_supported_doc_type_by_file_ext(file_ext, is_document)
 
     def get_all_analyzers(self) -> Dict[str, Any]:
         """
@@ -245,6 +254,8 @@ class AzureContentUnderstandingClient:
             training_storage_container_sas_url
             and training_storage_container_path_prefix
         ):  # noqa
+            if not training_storage_container_path_prefix.endswith("/"):
+                training_storage_container_path_prefix += "/"
             analyzer_template["trainingData"] = self._get_training_data_config(
                 training_storage_container_sas_url,
                 training_storage_container_path_prefix,
@@ -254,6 +265,8 @@ class AzureContentUnderstandingClient:
             pro_mode_reference_docs_storage_container_sas_url
             and pro_mode_reference_docs_storage_container_path_prefix
         ):  # noqa
+            if not pro_mode_reference_docs_storage_container_path_prefix.endswith("/"):
+                pro_mode_reference_docs_storage_container_path_prefix += "/"
             analyzer_template["knowledgeSources"] = self._get_pro_mode_reference_docs_config(
                 pro_mode_reference_docs_storage_container_sas_url,
                 pro_mode_reference_docs_storage_container_path_prefix,
@@ -298,7 +311,7 @@ class AzureContentUnderstandingClient:
 
         Args:
             analyzer_id (str): The ID of the analyzer to use.
-            file_location (str): The path to the file or the URL to analyze.
+            file_location (str): The local path to the file or the URL to analyze.
 
         Returns:
             Response: The response from the analysis request.
@@ -319,11 +332,11 @@ class AzureContentUnderstandingClient:
                             "data": base64.b64encode(f.read_bytes()).decode("utf-8")
                         }
                         for f in file_path.rglob("*")
-                        if f.is_file() and self.is_supported_type_by_file_path(f, is_document=True)
+                        if f.is_file() and self.is_supported_doc_type_by_file_path(f, is_document=True)
                     ]
                 }
                 headers = {"Content-Type": "application/json"}
-            elif file_path.is_file() and self.is_supported_type_by_file_path(file_path):
+            elif file_path.is_file():
                 with open(file_location, "rb") as file:
                     data = file.read()
                 headers = {"Content-Type": "application/octet-stream"}
@@ -428,6 +441,90 @@ class AzureContentUnderstandingClient:
                             f"Please ensure both files exist for '{filename}'."
                         )
 
+    def _get_analyze_list(
+        self,
+        reference_docs_folder: str,
+    ) -> List[ReferenceDocItem]:
+        """
+        Returns a list of ReferenceDocItem objects for files in the given folder that need to be analyzed.
+        """
+        analyze_list: List[ReferenceDocItem] = []
+
+        for dirpath, _, filenames in os.walk(reference_docs_folder):
+            for filename in filenames:
+                _, file_ext = os.path.splitext(filename)
+                if self.is_supported_doc_type_by_file_ext(file_ext, is_document=True):
+                    file_path = os.path.join(dirpath, filename)
+                    result_file_name = filename + self.OCR_RESULT_FILE_SUFFIX
+                    analyze_list.append(
+                        ReferenceDocItem(
+                            filename=filename,
+                            file_path=file_path,
+                            result_file_name=result_file_name,
+                        )
+                    )
+                else:
+                    raise ValueError(
+                        f"File '{filename}' is not a supported document type, "
+                        f"please remove it or convert it to a supported type."
+                    )
+
+        return analyze_list
+
+    def _get_upload_only_list(
+        self,
+        reference_docs_folder: str,
+    ) -> List[ReferenceDocItem]:
+        """
+        Returns a list of ReferenceDocItem objects for files in the given folder that already have OCR results
+        """
+        upload_only_list: List[ReferenceDocItem] = []
+
+        for dirpath, _, filenames in os.walk(reference_docs_folder):
+            for filename in filenames:
+                _, file_ext = os.path.splitext(filename)
+                if self.is_supported_doc_type_by_file_ext(file_ext, is_document=True):
+                    file_path = os.path.join(dirpath, filename)
+                    result_file_name = filename + self.OCR_RESULT_FILE_SUFFIX
+                    result_file_path = os.path.join(dirpath, result_file_name)
+                    if not os.path.exists(result_file_path):
+                        raise FileNotFoundError(
+                            f"Result file '{result_file_name}' does not exist in '{dirpath}'. "
+                            f"Please run analyze first or remove this file from the folder."
+                        )
+                    upload_only_list.append(
+                        ReferenceDocItem(
+                            filename=filename,
+                            file_path=file_path,
+                            result_file_name=result_file_name,
+                            result_file_path=result_file_path,
+                        )
+                    )
+                elif filename.endswith(self.OCR_RESULT_FILE_SUFFIX):
+                    original_filename = filename.replace(self.OCR_RESULT_FILE_SUFFIX, "")
+                    if original_filename in filenames:
+                        # skip result.json files corresponding to the file with supported document type
+                        _, original_file_ext = os.path.splitext(original_filename)
+                        if self.is_supported_doc_type_by_file_ext(original_file_ext, is_document=True):
+                            continue
+                        else:
+                            raise ValueError(
+                                f"The '{original_filename}' is not a supported document type, "
+                                f"please remove the result file '{filename}' and '{original_filename}'."
+                            )
+                    else:
+                        raise ValueError(
+                            f"Result file '{filename}' is not corresponding to an original file, "
+                            f"please remove it."
+                        )
+                else:
+                    raise ValueError(
+                        f"File '{filename}' is not a supported document type, "
+                        f"please remove it or convert it to a supported type."
+                    )
+
+        return upload_only_list
+
     async def generate_knowledge_base_on_blob(
         self,
         reference_docs_folder: str,
@@ -435,65 +532,46 @@ class AzureContentUnderstandingClient:
         storage_container_path_prefix: str,
         skip_analyze: bool = False,
     ) -> None:
+        """
+        Generates a knowledge base on Azure Blob Storage by analyzing or uploading files from the given folder.
+        Args:
+            reference_docs_folder (str): The local path to the folder containing reference documents.
+            storage_container_sas_url (str): The SAS URL of the Azure Blob Storage container.
+            storage_container_path_prefix (str): The path prefix within the storage container where files will be
+            skip_analyze (bool): If True, skips the analysis step and only uploads existing result files.
+        """
         if not storage_container_path_prefix.endswith("/"):
             storage_container_path_prefix += "/"
-
+        
         resources = []
         async with ContainerClient.from_container_url(storage_container_sas_url) as container_client:
-            for dirpath, _, filenames in os.walk(reference_docs_folder):
-                for filename in filenames:
-                    filename_no_ext, file_ext = os.path.splitext(filename)
-                    if self.is_supported_type_by_file_ext(file_ext, is_document=True):
-                        file_path = os.path.join(dirpath, filename)
-                        result_file_name = filename_no_ext + self.OCR_RESULT_FILE_SUFFIX
-                        result_file_blob_path = storage_container_path_prefix + result_file_name
-                        # Get and upload result.json
-                        if not skip_analyze:
-                            self._logger.info(f"Analyzing result for {filename}")
-                            try:
-                                analyze_result = self.get_prebuilt_document_analyze_result(file_path)
-                            except Exception as e:
-                                self._logger.error(
-                                    f"Error of getting analyze result of '{filename}'. "
-                                    f"Please check the error message and consider retrying or removing this file."
-                                    )
-                                raise e
-                            await self._upload_json_to_blob(container_client, analyze_result, result_file_blob_path)
-                        else:
-                            self._logger.info(f"Using existing result.json for '{filename}'")
-                            result_file_path = os.path.join(dirpath, result_file_name)
-                            if not os.path.exists(result_file_path):
-                                raise FileNotFoundError(
-                                    f"Result file '{result_file_name}' does not exist in '{dirpath}'. "
-                                    f"Please run analyze first or remove this file from the folder."
-                                )
-                            await self._upload_file_to_blob(container_client, result_file_path, result_file_blob_path)
-                        # Upload the original file
-                        file_blob_path = storage_container_path_prefix + filename
-                        await self._upload_file_to_blob(container_client, file_path, file_blob_path)
-                        resources.append({"file": filename, "resultFile": result_file_name})
-                    elif filename.endswith(self.OCR_RESULT_FILE_SUFFIX) and skip_analyze:
-                        if filename.replace(self.OCR_RESULT_FILE_SUFFIX, "") in filenames:
-                            # skip result.json files corresponding to the file with supported document type
-                            original_filename = filename.replace(self.OCR_RESULT_FILE_SUFFIX, "")
-                            original_filename_no_ext, original_file_ext = os.path.splitext(original_filename)
-                            if self.is_supported_type_by_file_ext(original_file_ext, is_document=True):
-                                continue
-                            else:
-                                raise ValueError(
-                                    f"The original file of '{filename}' is not a supported document type, "
-                                    f"please remove the result file '{filename}' and '{original_filename}'."
-                                )
-                        else:
-                            raise ValueError(
-                                f"Result file '{filename}' is not corresponding to an original file, "
-                                f"please remove it."
+            if not skip_analyze:
+                analyze_list = self._get_analyze_list(reference_docs_folder)
+                for analyze_item in analyze_list:
+                    self._logger.info(f"Analyzing result for {analyze_item.filename}")
+                    try:
+                        analyze_result = self.get_prebuilt_document_analyze_result(analyze_item.file_path)
+                    except Exception as e:
+                        self._logger.error(
+                            f"Error of getting analyze result of '{analyze_item.filename}'. "
+                            f"Please check the error message and consider retrying or removing this file."
                             )
-                    else:
-                        raise ValueError(
-                            f"File '{filename}' is not a supported document type, "
-                            f"please remove it or convert it to a supported type."
-                        )
+                        raise e
+                    result_file_blob_path = storage_container_path_prefix + analyze_item.result_file_name
+                    file_blob_path = storage_container_path_prefix + analyze_item.filename
+                    await self._upload_json_to_blob(container_client, analyze_result, result_file_blob_path)
+                    await self._upload_file_to_blob(container_client, analyze_item.file_path, file_blob_path)
+                    resources.append({"file": analyze_item.filename, "resultFile": analyze_item.result_file_name})
+            else:
+                upload_list = self._get_upload_only_list(reference_docs_folder)
+                for upload_item in upload_list:
+                    self._logger.info(f"Using existing result.json for '{upload_item.filename}'")
+                    result_file_blob_path = storage_container_path_prefix + upload_item.result_file_name
+                    file_blob_path = storage_container_path_prefix + upload_item.filename
+                    await self._upload_file_to_blob(container_client, upload_item.file_path, file_blob_path)
+                    await self._upload_file_to_blob(container_client, upload_item.result_file_path, result_file_blob_path)
+                    resources.append({"file": upload_item.filename, "resultFile": upload_item.result_file_name})
+
             # Upload sources.jsonl
             await self.upload_jsonl_to_blob(
                 container_client, resources, storage_container_path_prefix + self.KNOWLEDGE_SOURCE_LIST_FILE_NAME)
@@ -571,7 +649,7 @@ class AzureContentUnderstandingClient:
 
         Args:
             classifier_id (str): The ID of the classifier to use.
-            file_location (str): The path to the file or the URL to analyze.
+            file_location (str): The local path to the file or the URL to analyze.
 
         Returns:
             Response: The response from the analysis request.
