@@ -1,0 +1,201 @@
+{
+  "name": "EOB_FieldExtraction",
+  "version": "1.0",
+  "task": "contentUnderstanding.fieldExtraction",
+  "description": "Extract employee-level claims from tabular EOB-like PDFs; merge DESC/EMA K DESC continuations; group across pages.",
+  "baseAnalyzerId": "prebuilt-documentAnalyzer",
+  "options": {
+    "tableOnly": true,
+    "mergeAcrossPageBreaks": true,
+    "ignoreHeaderRowsAfterPageBreak": true
+  },
+  "output": {
+    "type": "array",
+    "itemsRef": "#/definitions/employeeRecord"
+  },
+  "definitions": {
+    "employeeRecord": {
+      "type": "object",
+      "grouping": {
+        "keyFields": ["ALT ID", "EM L YEE NAME"],
+        "startPredicate": {
+          "regex": "^\\d{10}\\s+[A-Z][A-Z .,'-]+,\\s*[A-Z][A-Z .,'-]+\\b"
+        }
+      },
+      "fields": [
+        {
+          "name": "ALT ID",
+          "type": "string",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["ALT ID", "ALT  ID", "ALTID"] },
+            { "kind": "regex", "pattern": "\\b\\d{6,12}\\b" }
+          ]
+        },
+        {
+          "name": "EM L YEE NAME",
+          "type": "string",
+          "required": true,
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["EM L YEE NAME", "EMPLOYEE NAME", "NAME", "EM L YEE"] },
+            { "kind": "regex", "pattern": "^[A-Z][A-Z .,'-]+,\\s*[A-Z][A-Z .,'-]+$" }
+          ]
+        },
+        {
+          "name": "CLAIMANT",
+          "type": "string",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["CLAIMANT"] }
+          ]
+        },
+        {
+          "name": "CLMT D B",
+          "type": "date",
+          "format": ["MM-DD-YY", "MM-DD-YYYY"],
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["CLMT D B", "CLMT DOB", "CIMT D B", "CLMT D B TE"] }
+          ]
+        },
+        {
+          "name": "TE MDATE",
+          "type": "date",
+          "format": ["MM-DD-YY", "MM-DD-YYYY"],
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["TE MDATE", "TERM DATE", "TERMDATE", "MDATE"] }
+          ]
+        },
+        {
+          "name": "claims",
+          "type": "array",
+          "itemsRef": "#/definitions/claimLine",
+          "collection": {
+            "rowDetection": {
+              "headerDetection": {
+                "minHeaderTokens": 2,
+                "tokens": ["BILLED", "AID", "BMISSI N", "DATE OF", "SE VICE", "ICD", "DIA N", "DESC", "EMA K DESC"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "claimLine": {
+      "type": "object",
+      "fields": [
+        {
+          "name": "BILLED",
+          "type": "number",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["BILLED"] },
+            { "kind": "regex", "pattern": "^(?:\\d{1,3}(?:,\\d{3})*|\\d+)\\.\\d{2}$" }
+          ],
+          "normalizer": { "remove": ["," ] }
+        },
+        {
+          "name": "DATE OF SERVICE",
+          "type": "date",
+          "format": ["MM-DD-YY", "MM-DD-YYYY"],
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["DATE OF SERVICE", "DATE SE VICE", "DATE OF SE VICE"] }
+          ]
+        },
+        {
+          "name": "AID",
+          "type": "number",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["AID"] },
+            { "kind": "regex", "pattern": "^(?:\\d{1,3}(?:,\\d{3})*|\\d+)\\.\\d{2}$" }
+          ],
+          "normalizer": { "remove": ["," ] }
+        },
+        {
+          "name": "BMISSI N",
+          "type": "string",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["BMISSI N", "S BMISSI N", "S EC S BMISSI N"] },
+            { "kind": "regex", "pattern": "^[A-Z0-9]{6,8}$" }
+          ]
+        },
+        {
+          "name": "ICD",
+          "type": "string",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["ICD", "ICD DIA N", "OF ICD DIA N"] },
+            { "kind": "regex", "pattern": "^(9|10)$" }
+          ]
+        },
+        {
+          "name": "DIA N",
+          "type": "string",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["DIA N", "ICD DIA N"] },
+            { "kind": "regex", "pattern": "^[A-Z0-9.\\-]{3,}$" }
+          ]
+        },
+        {
+          "name": "DESC",
+          "type": "string",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["DESC"] }
+          ]
+        },
+        {
+          "name": "EMA K DESC",
+          "type": "string",
+          "fieldSources": [
+            { "kind": "headerSynonyms", "headers": ["EMA K DESC", "REMARKS", "NOTES"] }
+          ]
+        }
+      ],
+
+      "headerSynonyms": {
+        "DATE OF SERVICE": ["DATE SE VICE", "DATE OF SE VICE"],
+        "ICD": ["ICD", "ICD DIA N", "OF ICD DIA N"],
+        "DIA N": ["DIA N", "ICD DIA N"],
+        "BMISSI N": ["BMISSI N", "S BMISSI N", "S EC S BMISSI N"]
+      },
+
+      "cellSplitRules": [
+        {
+          "description": "Split combined DOS + ICD + DIA (e.g., '07-28-24 10 J96.01')",
+          "pattern": "^(?P<DOS>[0-1]?\\d-[0-3]?\\d-\\d{2,4})\\s+(?P<ICD>9|10)\\s+(?P<DIA>[A-Z0-9.\\-]+)\\b",
+          "map": {
+            "DATE OF SERVICE": "${DOS}",
+            "ICD": "${ICD}",
+            "DIA N": "${DIA}"
+          }
+        }
+      ],
+
+      "continuationRules": {
+        "mergeFields": ["DESC", "EMA K DESC"],
+        "separator": " ",
+        "mergeAcrossPageBreak": true,
+        "ignoreHeaderRowsAfterPageBreak": true,
+        "continuationPredicate": {
+          "type": "blankNonDescFields",
+          "blankFields": [
+            "BILLED",
+            "AID",
+            "BMISSI N",
+            "DATE OF SERVICE",
+            "ICD",
+            "DIA N"
+          ]
+        }
+      },
+
+      "rowFilters": {
+        "excludeIfContains": [
+          "No Surprises Act",
+          "Open Negotiation",
+          "Helpdesk",
+          "cms.gov",
+          "QPA",
+          "cost share",
+          "Covered Person"
+        ]
+      }
+    }
+  }
+}
